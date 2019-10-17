@@ -9,6 +9,9 @@
 (defn- keyword-kind? [token-text]
   (boolean (re-find #"^:[a-zA-Z-_]+$" token-text)))
 
+(defn- string-kind? [token-text] ;; TODO special characters & escape sequences
+  (boolean (re-find #"^\".*\"$" token-text)))
+
 (defn- symbol-kind? [token-text]
   (boolean (re-find #"^[a-zA-Z-_<>!*?]+$" token-text)))
 
@@ -40,6 +43,9 @@
 
              (integer-kind? text)
              :integer
+
+             (string-kind? text)
+             :string
 
              (keyword-kind? text)
              :keyword

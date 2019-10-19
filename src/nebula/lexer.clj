@@ -2,6 +2,7 @@
 
 (def ^:private whitespace? #{\space \tab})
 (def ^:private newline? #{\newline})
+(def ^:private comment? #{\;})
 (def ^:private token-boundary? #{\( \) \[ \] \{ \}})
 
 (defn- make-token [chars lexer-state]
@@ -19,6 +20,27 @@
      [(make-token acc state)
       source
       state]
+
+     (:comment state)
+     (recur (rest source)
+            (if (newline? (first source))
+              (-> state
+                  (assoc :comment false)
+                  (update :line inc)
+                  (assoc :column 1))
+              (update state :column inc))
+            acc)
+
+     (comment? (first source))
+     (if (empty? acc)
+       (recur (rest source)
+              (-> state
+                  (assoc :comment true)
+                  (update :column inc))
+              acc)
+       [(make-token acc state)
+        source
+        (assoc state :comment true)])
 
      (whitespace? (first source))
      (if (empty? acc)
@@ -58,7 +80,8 @@
   "String -> tokens."
   ([source]
    (lex (seq source) [] {:line 1
-                         :column 1}))
+                         :column 1
+                         :comment false}))
   ([source acc state]
    (if (empty? source)
      acc

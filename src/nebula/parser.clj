@@ -59,11 +59,22 @@
              :else
              :error))))
 
+(defn- parse-expression [x]
+  ;; TODO do we actually need this?
+  ;; TODO be smarter about this
+  (read-string (:text x)))
+
+(def pairs {:open-parenthesis :close-parenthesis
+            :open-bracket :close-bracket
+            :open-brace :close-brace})
+
 (defn- parse-tokens
   ([tokens]
-   (parse-tokens tokens [] {:enclosures (list)}))
+   (parse-tokens tokens [] {:enclosures (list)
+                            :scopes (list)}))
   ([tokens acc state]
-   (let [token-kind (-> tokens first :token-kind)]
+   (let [token (first tokens)
+         token-kind (:token-kind token)]
      (cond
        (nil? token-kind)
        (do
@@ -71,10 +82,15 @@
            (throw (ex-info "Unexpected EOF" state)))
          acc)
 
-       (= :open-parenthesis token-kind)
+       (-> token-kind #{:open-parenthesis
+                        :open-bracket
+                        :open-brace})
        (recur (rest tokens)
-              acc
-              (update state :enclosures conj :close-parenthesis))
+              []
+              (-> state
+                  (update :enclosures conj {:opening token
+                                            :closing (pairs token-kind)
+                                            :scope acc})))
 
        (-> token-kind #{:close-parenthesis
                         :close-bracket
@@ -83,20 +99,27 @@
          (when (empty? (:enclosures state))
            (throw (ex-info (format "Unexpected %s" token-kind)
                            state)))
-         (let [expected (first (:enclosures state))]
+         (let [expected (-> state :enclosures peek :closing)]
            (when (not= expected token-kind)
-             (throw (ex-info (format "Unexpected %s, expected %s"
-                                     token-kind expected)
+             (throw (ex-info (format "Expected %s, got %s at %d:%d"
+                                     expected token-kind (:line token) (:column token))
                              state))))
-         (recur (rest tokens)
-                acc
-                (update state :enclosures pop)))
+         (let [enclosure (peek (:enclosures state))]
+           (recur (rest tokens)
+                  (conj (:scope enclosure) {:scalar false
+                                            :line (-> enclosure :opening :line)
+                                            :column (-> enclosure :opening :column)
+                                            :expression-kind :sexp
+                                            :expression acc})
+                  (-> state
+                      (update :enclosures pop)))))
 
        :else ;; scalar values
        (recur (rest tokens)
               (as-> (first tokens) $
                 (assoc $ :scalar true)
                 (assoc $ :expression-kind (:token-kind $))
+                (assoc $ :expression (parse-expression $))
                 (dissoc $ :token-kind)
                 (conj acc $))
               state)))))

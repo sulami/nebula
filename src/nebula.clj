@@ -8,7 +8,7 @@
   (-> source
       lex
       parse
-      infer-types))
+      #_infer-types))
 
 (defn repl []
   (let [input (read-line)]

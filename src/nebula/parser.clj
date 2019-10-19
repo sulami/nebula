@@ -61,30 +61,45 @@
 
 (defn- parse-tokens
   ([tokens]
-   (parse-tokens tokens [] {:level 0 :last-enclosing nil}))
+   (parse-tokens tokens [] {:enclosures (list)}))
   ([tokens acc state]
-   (cond
-     (empty? tokens)
-     acc
+   (let [token-kind (-> tokens first :token-kind)]
+     (cond
+       (nil? token-kind)
+       (do
+         (when-not (empty? (:enclosures state))
+           (throw (ex-info "Unexpected EOF" state)))
+         acc)
 
-     (-> tokens first :token-kind (= :open-parenthesis))
-     (recur (rest tokens)
-            acc
-            (update state :level inc))
+       (= :open-parenthesis token-kind)
+       (recur (rest tokens)
+              acc
+              (update state :enclosures conj :close-parenthesis))
 
-     (-> tokens first :token-kind (= :close-parenthesis))
-     (recur (rest tokens)
-            acc
-            (update state :level dec))
+       (-> token-kind #{:close-parenthesis
+                        :close-bracket
+                        :close-brace})
+       (do
+         (when (empty? (:enclosures state))
+           (throw (ex-info (format "Unexpected %s" token-kind)
+                           state)))
+         (let [expected (first (:enclosures state))]
+           (when (not= expected token-kind)
+             (throw (ex-info (format "Unexpected %s, expected %s"
+                                     token-kind expected)
+                             state))))
+         (recur (rest tokens)
+                acc
+                (update state :enclosures pop)))
 
-     :else ;; scalar values
-     (recur (rest tokens)
-            (as-> (first tokens) $
-              (assoc $ :scalar true)
-              (assoc $ :expression-kind (:token-kind $))
-              (dissoc $ :token-kind)
-              (conj acc $))
-            state))))
+       :else ;; scalar values
+       (recur (rest tokens)
+              (as-> (first tokens) $
+                (assoc $ :scalar true)
+                (assoc $ :expression-kind (:token-kind $))
+                (dissoc $ :token-kind)
+                (conj acc $))
+              state)))))
 
 (defn parse
   "`tokens` -> expressions."

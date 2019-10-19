@@ -15,9 +15,9 @@
 (defn- symbol-kind? [token-text]
   (boolean (re-find #"^[a-zA-Z-_<>!*?]+$" token-text)))
 
-(defn- parse-token [token]
+(defn- attach-kind [token]
   (let [text (:text token)]
-    (assoc token :kind
+    (assoc token :token-kind
            (cond
              (= "(" text)
              :open-parenthesis
@@ -59,7 +59,35 @@
              :else
              :error))))
 
+(defn- parse-tokens
+  ([tokens]
+   (parse-tokens tokens [] {:level 0 :last-enclosing nil}))
+  ([tokens acc state]
+   (cond
+     (empty? tokens)
+     acc
+
+     (-> tokens first :token-kind (= :open-parenthesis))
+     (recur (rest tokens)
+            acc
+            (update state :level inc))
+
+     (-> tokens first :token-kind (= :close-parenthesis))
+     (recur (rest tokens)
+            acc
+            (update state :level dec))
+
+     :else ;; scalar values
+     (recur (rest tokens)
+            (as-> (first tokens) $
+              (assoc $ :scalar true)
+              (assoc $ :expression-kind (:token-kind $))
+              (dissoc $ :token-kind)
+              (conj acc $))
+            state))))
+
 (defn parse
-  "Attaches the `:kind` to `tokens`."
+  "`tokens` -> expressions."
   [tokens]
-  (map parse-token tokens))
+  (let [tokens-with-kinds (map attach-kind tokens)]
+    (parse-tokens tokens-with-kinds)))

@@ -11,18 +11,21 @@
                     :return :f32})
 
 (defn- kind->type
-  [kind]
-  (kind {:integer default-int-type
-         :float default-float-type
-         :nil :nil
-         :boolean :boolean}))
+  [expression-kind]
+  (get {:integer default-int-type
+        :float default-float-type
+        :nil :nil
+        :boolean :boolean
+        :keyword :keyword}
+       expression-kind
+       :error))
 
 (def scalar-type? keyword?)
 
 (defn- infer-type
   [expression]
   (->> expression
-       :kind
+       :expression-kind
        kind->type
        (assoc expression :type)))
 

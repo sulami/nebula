@@ -22,7 +22,7 @@
    (lex-string source state state [\"]))
   ([source state start acc]
    (if (quotation-mark? (first source))
-     [(make-token acc start)
+     [(make-token (conj acc (first source)) start)
       (rest source)
       (-> state
           (update :column inc))]
@@ -72,7 +72,7 @@
        (lex-string (rest source) state)
        [(make-token acc state)
         source
-        (assoc state :comment true)])
+        state])
 
      (whitespace? (first source))
      (if (empty? acc)

@@ -76,6 +76,8 @@
             state
             (conj acc (first source))))))
 
+;; TODO empty source produces one empty token
+
 (defn lex
   "String -> tokens."
   ([source]

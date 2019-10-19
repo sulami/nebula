@@ -38,6 +38,9 @@
                  (= "false" text))
              :boolean
 
+             (= "nil" text)
+             :nil
+
              (float-kind? text)
              :float
 

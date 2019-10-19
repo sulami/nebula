@@ -1,4 +1,4 @@
-(ns nebula.lexer_test
+(ns nebula.lexer-test
   (:require [clojure.test :refer [deftest testing is]]
             [nebula.lexer :as sut]))
 

@@ -16,7 +16,9 @@
         :float default-float-type
         :nil :nil
         :boolean :boolean
-        :keyword :keyword}
+        :keyword :keyword
+        :symbol :symbol
+        :string :string}
        expression-kind
        :error))
 

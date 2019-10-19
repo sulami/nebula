@@ -3,12 +3,37 @@
 (def ^:private whitespace? #{\space \tab})
 (def ^:private newline? #{\newline})
 (def ^:private comment? #{\;})
+(def ^:private quotation-mark? #{\"})
 (def ^:private token-boundary? #{\( \) \[ \] \{ \}})
 
 (defn- make-token [chars lexer-state]
   {:text (apply str chars)
    :line (:line lexer-state)
    :column (:column lexer-state)})
+
+(defn- lex-string
+  "Lexes a string token.
+
+  Strings can span several lines, so we need to keep track of where it
+  started while advancing the state. There's also some special
+  escaping handling going on within the string. On the bright side we
+  mostly ignore string contents otherwise."
+  ([source state]
+   (lex-string source state state [\"]))
+  ([source state start acc]
+   (if (quotation-mark? (first source))
+     [(make-token acc start)
+      (rest source)
+      (-> state
+          (update :column inc))]
+     (recur (rest source)
+            (if (newline? (first source))
+              (-> state
+                  (update :line inc)
+                  (assoc :column 1))
+              (update state :column inc))
+            start
+            (conj acc (first source))))))
 
 (defn- advance
   "Walks the lexer by one char and returns a token & updated source
@@ -38,6 +63,13 @@
                   (assoc :comment true)
                   (update :column inc))
               acc)
+       [(make-token acc state)
+        source
+        (assoc state :comment true)])
+
+     (quotation-mark? (first source))
+     (if (empty? acc)
+       (lex-string (rest source) state)
        [(make-token acc state)
         source
         (assoc state :comment true)])

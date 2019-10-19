@@ -4,6 +4,8 @@
 (def ^:private newline? #{\newline})
 (def ^:private comment? #{\;})
 (def ^:private quotation-mark? #{\"})
+(def ^:private escape? #{\\})
+(def ^:private escapabale? #{\\ \" \n})
 (def ^:private token-boundary? #{\( \) \[ \] \{ \}})
 
 (defn- make-token [chars lexer-state]
@@ -21,19 +23,50 @@
   ([source state]
    (lex-string source state state [\"]))
   ([source state start acc]
-   (if (quotation-mark? (first source))
-     [(make-token (conj acc (first source)) start)
-      (rest source)
-      (-> state
-          (update :column inc))]
-     (recur (rest source)
-            (if (newline? (first source))
-              (-> state
-                  (update :line inc)
-                  (assoc :column 1))
-              (update state :column inc))
-            start
-            (conj acc (first source))))))
+   (let [c (first source)]
+     (cond
+       (nil? c)
+       (throw (ex-info "Unexpected EOF" {}))
+
+       (:escape state)
+       (if (escapabale? c)
+         (recur (rest source)
+                   (-> state
+                       (update :column inc)
+                       (dissoc :escape))
+                   start
+                   (conj acc c))
+         (throw (ex-info (format "Unsupported escape character: %s" c)
+                         state)))
+
+       (escape? c)
+       (recur (rest source)
+              (if (newline? c)
+                (-> state
+                    (update :line inc)
+                    (assoc :column 1)
+                    (assoc :escape true))
+                (-> state
+                    (update :column inc)
+                    (assoc :escape true)))
+              start
+              (conj acc c))
+
+       (quotation-mark? c)
+       [(make-token (conj acc c) start)
+        (rest source)
+        (-> state
+            (update :column inc))]
+
+       :else
+       (recur (rest source)
+              (if (newline? c)
+                (-> state
+                    (update :line inc)
+                    (assoc :column 1))
+                (update state :column inc))
+              start
+              (conj acc c))))))
 
 (defn- advance
   "Walks the lexer by one char and returns a token & updated source

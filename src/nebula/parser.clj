@@ -9,7 +9,7 @@
 (defn- keyword-kind? [token-text]
   (boolean (re-find #"^:[a-zA-Z-_]+$" token-text)))
 
-(defn- string-kind? [token-text] ;; TODO special characters & escape sequences
+(defn- string-kind? [token-text]
   (boolean (re-find #"^\".*\"$" token-text)))
 
 (defn- symbol-kind? [token-text]

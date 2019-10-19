@@ -36,7 +36,30 @@
       (let [input "\"string\"3.14"
             lexed (sut/lex input)]
         (is (= ["\"string\"" "3.14"]
-               (mapv :text lexed))))))
+               (mapv :text lexed)))))
+
+    (testing "it throws on never-ending strings"
+      (is (thrown-with-msg? Exception #"Unexpected EOF"
+                            (sut/lex "\"some string"))))
+
+    (testing "it deals with escaped quotation marks"
+      (let [input "\"a \\\" string\""
+            lexed (sut/lex input)]
+        (is (= [input] (mapv :text lexed)))))
+
+    (testing "it deals with escaped backslashes"
+      (let [input "\"a \\\\ string\""
+            lexed (sut/lex input)]
+        (is (= [input] (mapv :text lexed)))))
+
+    (testing "it deals with escaped newlines"
+      (let [input "\"a \\n string\""
+            lexed (sut/lex input)]
+        (is (= [input] (mapv :text lexed)))))
+
+    (testing "it throws if you try to escape something else"
+      (is (thrown-with-msg? Exception #"Unsupported escape character"
+                            (sut/lex "\"\\ \"")))))
 
   (testing "when lexing comments"
     (testing "it ignores the comment"

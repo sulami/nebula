@@ -7,14 +7,12 @@
     (testing "it captures the string"
       (let [input "\"foo bar 3.14\""
             lexed (sut/lex input)]
-        (is (= 1 (count lexed)))
-        (is (= input (:text (first lexed))))))
+        (is (= [input] (mapv :text lexed)))))
 
     (testing "it captures strings across newlines"
       (let [input "\"foo \nbar 3.14\""
             lexed (sut/lex input)]
-        (is (= 1 (count lexed)))
-        (is (= input (:text (first lexed))))))
+        (is (= [input] (mapv :text lexed)))))
 
     (testing "it keeps the string start"
       (let [input "\"foo \nbar 3.14\""
@@ -38,4 +36,15 @@
       (let [input "\"string\"3.14"
             lexed (sut/lex input)]
         (is (= ["\"string\"" "3.14"]
-               (mapv :text lexed)))))))
+               (mapv :text lexed))))))
+
+  (testing "when lexing comments"
+    (testing "it ignores the comment"
+      (let [input "3.14;; comment"
+            lexed (sut/lex input)]
+        (is (= ["3.14"] (mapv :text lexed)))))
+
+    (testing "it only ignores until it finds a newline"
+      (let [input ";; comment\n3.14"
+            lexed (sut/lex input)]
+        (is (= ["3.14"] (mapv :text lexed)))))))

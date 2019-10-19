@@ -42,9 +42,10 @@
   ([source state acc]
    (cond
      (empty? source)
-     [(make-token acc state)
-      source
-      state]
+     (when (seq acc)
+       [(make-token acc state)
+        source
+        state])
 
      (:comment state)
      (recur (rest source)
@@ -108,8 +109,6 @@
             state
             (conj acc (first source))))))
 
-;; TODO empty source produces one empty token
-
 (defn lex
   "String -> tokens."
   ([source]
@@ -121,5 +120,7 @@
      acc
      (let [[token tail new-state] (advance source state)]
        (recur tail
-              (conj acc token)
+              (if (some? token)
+                (conj acc token)
+                acc)
               new-state)))))

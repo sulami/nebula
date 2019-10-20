@@ -26,7 +26,7 @@
    (let [c (first source)]
      (cond
        (nil? c)
-       (throw (ex-info "Unexpected EOF" {}))
+       (throw (ex-info "Unexpected EOF" {:error :unexpected-eof}))
 
        (:escape state)
        (if (escapabale? c)
@@ -37,7 +37,9 @@
                    start
                    (conj acc c))
          (throw (ex-info (format "Unsupported escape character: %s" c)
-                         state)))
+                         {:error :unsupported-escape-char
+                          :char c
+                          :state state})))
 
        (escape? c)
        (recur (rest source)

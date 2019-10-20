@@ -79,7 +79,8 @@
        (nil? token-kind)
        (do
          (when-not (empty? (:enclosures state))
-           (throw (ex-info "Unexpected EOF" state)))
+           (throw (ex-info "Unexpected EOF" {:error :unexpected-eof
+                                             :state state})))
          acc)
 
        (-> token-kind #{:open-parenthesis
@@ -98,12 +99,17 @@
        (do
          (when (empty? (:enclosures state))
            (throw (ex-info (format "Unexpected %s" token-kind)
-                           state)))
+                           {:error :unexpected-token
+                            :token token
+                            :state state})))
          (let [expected (-> state :enclosures peek :closing)]
            (when (not= expected token-kind)
              (throw (ex-info (format "Expected %s, got %s at %d:%d"
                                      expected token-kind (:line token) (:column token))
-                             state))))
+                             {:error :wrong-token
+                              :token token
+                              :expected expected
+                              :state state}))))
          (let [enclosure (peek (:enclosures state))]
            (recur (rest tokens)
                   (conj (:scope enclosure) {:scalar false

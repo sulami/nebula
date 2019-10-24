@@ -3,7 +3,7 @@ extern crate nom_locate;
 
 use nom::{
     IResult,
-    bytes::complete::{tag, take_until, take_while1},
+    bytes::complete::{tag, take_while, take_while1},
     character::{is_alphanumeric},
     combinator::{peek},
 };
@@ -12,18 +12,16 @@ use nom_locate::{
     LocatedSpan,
 };
 
-type Span<'a> = LocatedSpan<&'a str>;
+type Span<'a> = LocatedSpan<&'a [u8]>;
 
 #[derive(Debug)]
 enum Token<'a> {
-    Atom { position: Span<'a>, content: &'a str },
-    Sexp { position: Span<'a>, inner: &'a str },
+    Atom { position: Span<'a>, content: &'a [u8] },
+    Sexp { position: Span<'a>, inner: Vec<Token<'a>> },
 }
 
-fn alphanum(c: char) -> bool { ! is_alphanumeric(c as u8) }
-
 fn parse_atom(s: Span) -> IResult<Span, Token> {
-    let (s, content) = take_while1(alphanum)(s)?;
+    let (s, content) = take_while1(is_alphanumeric)(s)?;
     let (s, pos) = position(s)?;
 
     Ok((s, Token::Atom {
@@ -35,16 +33,16 @@ fn parse_atom(s: Span) -> IResult<Span, Token> {
 fn parse_sexp(s: Span) -> IResult<Span, Token> {
     let (s, _) = tag("(")(s)?;
     let (s, pos) = position(s)?;
-    let (s, inner) = take_until(")")(s)?;
-    let (s, _) = tag(")")(s)?;
+    let (s, inner) = nom::multi::many_till(parse_token, tag(")"))(s)?;
 
     Ok((s, Token::Sexp {
         position: pos,
-        inner: inner.fragment,
+        inner: inner.0,
     }))
 }
 
 fn parse_token(s: Span) -> IResult<Span, Token> {
+    let (s, _) = take_while(nom::character::is_space)(s)?;
     let p: IResult<Span, Span> = peek(tag("("))(s);
     if p.is_ok() {
         parse_sexp(s)
@@ -54,16 +52,19 @@ fn parse_token(s: Span) -> IResult<Span, Token> {
 }
 
 fn main() {
-    let input = Span::new("(foobar 3.14)");
-    let output = parse_token(input).unwrap();
-    match output.1 {
-        Token::Sexp { position, inner, .. } => {
-            println!("position: {:?}", position);
-            println!("inner: {:?}", inner);
-        }
-        Token::Atom { position, content, .. } => {
-            println!("position: {:?}", position);
-            println!("content: {:?}", content);
-        }
+    let input = Span::new("(foo (bar))".as_bytes());
+    let output = parse_token(input);
+    match output {
+        Ok(o) => match o.1 {
+            Token::Sexp { position, inner, .. } => {
+                println!("position: {:?}", position);
+                println!("inner: {:?}", inner);
+            }
+            Token::Atom { position, content, .. } => {
+                println!("position: {:?}", position);
+                println!("content: {:?}", content);
+            }
+        },
+        Err(e) => println!("{:?}", e),
     }
 }

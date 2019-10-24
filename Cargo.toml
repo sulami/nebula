@@ -1,0 +1,9 @@
+[package]
+name = "nebula"
+version = "0.1.0"
+authors = ["Robin Schroer <sulami@peerwire.org>"]
+edition = "2018"
+
+[dependencies]
+nom = "5"
+nom_locate = "1"

@@ -5,7 +5,7 @@ use nom::{
     IResult,
     bytes::complete::{tag, take_while, take_while1},
     character::{is_alphanumeric},
-    combinator::{peek},
+    branch::alt,
 };
 use nom_locate::{
     position,
@@ -21,8 +21,8 @@ enum Token<'a> {
 }
 
 fn parse_atom(s: Span) -> IResult<Span, Token> {
-    let (s, content) = take_while1(is_alphanumeric)(s)?;
     let (s, pos) = position(s)?;
+    let (s, content) = take_while1(is_alphanumeric)(s)?;
 
     Ok((s, Token::Atom {
         position: pos,
@@ -31,8 +31,8 @@ fn parse_atom(s: Span) -> IResult<Span, Token> {
 }
 
 fn parse_sexp(s: Span) -> IResult<Span, Token> {
-    let (s, _) = tag("(")(s)?;
     let (s, pos) = position(s)?;
+    let (s, _) = tag("(")(s)?;
     let (s, inner) = nom::multi::many_till(parse_token, tag(")"))(s)?;
 
     Ok((s, Token::Sexp {
@@ -43,12 +43,10 @@ fn parse_sexp(s: Span) -> IResult<Span, Token> {
 
 fn parse_token(s: Span) -> IResult<Span, Token> {
     let (s, _) = take_while(nom::character::is_space)(s)?;
-    let p: IResult<Span, Span> = peek(tag("("))(s);
-    if p.is_ok() {
-        parse_sexp(s)
-    } else {
-        parse_atom(s)
-    }
+    alt((
+        parse_sexp,
+        parse_atom
+    ))(s)
 }
 
 fn main() {

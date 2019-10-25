@@ -59,8 +59,9 @@ fn parse_token(s: Span) -> IResult<Span, Token> {
     ))(s)
 }
 
-fn main() {
-    let input = Span::new("(foo) ;blubber\nbar baz".as_bytes());
+fn parse_source(source: &str) {
+    println!("Parsing:\n\n{}\n", source);
+    let input = Span::new(source.as_bytes());
     let parsed = nom::combinator::all_consuming(nom::multi::many0(parse_token))(input);
     match parsed {
         Ok((_, tokens)) => for token in tokens {
@@ -78,4 +79,8 @@ fn main() {
         }
         Err(_) => println!("Failed parsing")
     }
+}
+
+fn main() {
+    parse_source("(foo) ;blubber\nbar baz");
 }

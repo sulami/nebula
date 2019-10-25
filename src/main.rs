@@ -1,6 +1,8 @@
 extern crate nom;
 extern crate nom_locate;
 
+use std::fmt::{Debug, Display, Formatter, Result};
+
 use nom::{
     IResult,
     bytes::complete::{tag},
@@ -19,10 +21,47 @@ use nom_locate::{
 
 type Span<'a> = LocatedSpan<&'a [u8]>;
 
-#[derive(Debug)]
 enum Token<'a> {
     Atom { position: Span<'a>, content: &'a [u8] },
     Sexp { position: Span<'a>, inner: Vec<Token<'a>> },
+}
+
+impl Display for Token<'_> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match self {
+            Token::Sexp { inner, .. } => {
+                let inner_strings: Vec<String> = inner
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect();
+                write!(f, "({})", inner_strings.join(" "))
+            },
+            Token::Atom { content, .. } => write!(f, "{}", std::str::from_utf8(&content).expect("foo")),
+        }
+    }
+}
+
+impl Debug for Token<'_> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match self {
+            Token::Sexp { position, inner, .. } => {
+                let inner_strings: Vec<String> = inner
+                    .iter()
+                    .map(|x| format!("{:?}", x))
+                    .collect();
+                write!(f, "{}:{} Sexp\n{}\nSexp End",
+                       position.line,
+                       position.offset,
+                       inner_strings.join("\n"))
+            }
+            Token::Atom { position, content, .. } => {
+                write!(f, "{}:{} {}",
+                       position.line,
+                       position.offset,
+                       std::str::from_utf8(&content).expect("bar"))
+            }
+        }
+    }
 }
 
 fn parse_comment(s: Span) -> IResult<Span, Span> {
@@ -74,21 +113,12 @@ fn parse_source(source: &str) {
     let parsed = all_consuming(many0(parse_token))(input);
     match parsed {
         Ok((_, tokens)) => for token in tokens {
-            match token {
-                Token::Sexp { position, inner, .. } => {
-                    println!("position: {:?}", position);
-                    println!("inner: {:?}", inner);
-                }
-                Token::Atom { position, content, .. } => {
-                    println!("position: {:?}", position);
-                    println!("content: {:?}", content);
-                }
-            }
+            println!("{:?}", token)
         }
         Err(e) => println!("Failed parsing {:?}", e)
     }
 }
 
 fn main() {
-    parse_source("(foo)\n ; blubber\nbar baz");
+    parse_source("(foo 3432 (dag of dags))\n ; blubber\nbar baz");
 }

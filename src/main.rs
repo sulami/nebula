@@ -7,7 +7,7 @@ use nom::{
     character::complete::{alphanumeric1,
                           line_ending,
                           not_line_ending,
-                          multispace0},
+                          multispace1},
     combinator::{all_consuming},
     multi::{many0, many_till},
     branch::alt,
@@ -23,15 +23,14 @@ type Span<'a> = LocatedSpan<&'a [u8]>;
 enum Token<'a> {
     Atom { position: Span<'a>, content: &'a [u8] },
     Sexp { position: Span<'a>, inner: Vec<Token<'a>> },
-    Null,
 }
 
-fn parse_comment(s: Span) -> IResult<Span, Token> {
+fn parse_comment(s: Span) -> IResult<Span, Span> {
     let (s, _) = tag(";")(s)?;
     let (s, _) = not_line_ending(s)?;
     let (s, _) = line_ending(s)?;
 
-    Ok((s, Token::Null))
+    Ok((s, s)) // First one's the right one, don't read from the second one.
 }
 
 fn parse_atom(s: Span) -> IResult<Span, Token> {
@@ -55,10 +54,15 @@ fn parse_sexp(s: Span) -> IResult<Span, Token> {
     }))
 }
 
+fn skip_stuff(s: Span) -> IResult<Span, Span> {
+    let alt_parser = alt((parse_comment, multispace1));
+    let (s, _) = many0(alt_parser)(s)?;
+    Ok((s, s)) // First one's the right one
+}
+
 fn parse_token(s: Span) -> IResult<Span, Token> {
-    let (s, _) = multispace0(s)?;
+    let (s, _) = skip_stuff(s)?;
     alt((
-        parse_comment,
         parse_sexp,
         parse_atom
     ))(s)
@@ -79,10 +83,9 @@ fn parse_source(source: &str) {
                     println!("position: {:?}", position);
                     println!("content: {:?}", content);
                 }
-                Token::Null => println!("Null")
             }
         }
-        Err(_) => println!("Failed parsing")
+        Err(e) => println!("Failed parsing {:?}", e)
     }
 }
 

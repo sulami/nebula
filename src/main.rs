@@ -3,7 +3,7 @@ extern crate nom_locate;
 
 use nom::{
     IResult,
-    bytes::complete::{tag, take_while, take_while1},
+    bytes::complete::{tag, take_while, take_while1, take_until},
     character::{is_alphanumeric},
     branch::alt,
 };
@@ -18,6 +18,15 @@ type Span<'a> = LocatedSpan<&'a [u8]>;
 enum Token<'a> {
     Atom { position: Span<'a>, content: &'a [u8] },
     Sexp { position: Span<'a>, inner: Vec<Token<'a>> },
+    Null,
+}
+
+fn parse_comment(s: Span) -> IResult<Span, Token> {
+    let (s, _) = tag(";")(s)?;
+    let (s, _) = take_until("\n")(s)?;
+    let (s, _) = tag("\n")(s)?;
+
+    Ok((s, Token::Null))
 }
 
 fn parse_atom(s: Span) -> IResult<Span, Token> {
@@ -44,25 +53,29 @@ fn parse_sexp(s: Span) -> IResult<Span, Token> {
 fn parse_token(s: Span) -> IResult<Span, Token> {
     let (s, _) = take_while(nom::character::is_space)(s)?;
     alt((
+        parse_comment,
         parse_sexp,
         parse_atom
     ))(s)
 }
 
 fn main() {
-    let input = Span::new("(foo (bar))".as_bytes());
-    let output = parse_token(input);
-    match output {
-        Ok(o) => match o.1 {
-            Token::Sexp { position, inner, .. } => {
-                println!("position: {:?}", position);
-                println!("inner: {:?}", inner);
+    let input = Span::new("(foo) ;blubber\nbar baz".as_bytes());
+    let parsed = nom::combinator::all_consuming(nom::multi::many0(parse_token))(input);
+    match parsed {
+        Ok((_, tokens)) => for token in tokens {
+            match token {
+                Token::Sexp { position, inner, .. } => {
+                    println!("position: {:?}", position);
+                    println!("inner: {:?}", inner);
+                }
+                Token::Atom { position, content, .. } => {
+                    println!("position: {:?}", position);
+                    println!("content: {:?}", content);
+                }
+                Token::Null => println!("Null")
             }
-            Token::Atom { position, content, .. } => {
-                println!("position: {:?}", position);
-                println!("content: {:?}", content);
-            }
-        },
-        Err(e) => println!("{:?}", e),
+        }
+        Err(_) => println!("Failed parsing")
     }
 }

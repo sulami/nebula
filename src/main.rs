@@ -7,12 +7,14 @@ use nom::{
     IResult,
     bytes::complete::{tag},
     character::complete::{alphanumeric1,
+                          digit1,
                           line_ending,
                           not_line_ending,
                           multispace1},
-    combinator::{all_consuming},
+    combinator::{all_consuming, recognize, rest},
     multi::{many0, many_till},
     branch::alt,
+    sequence::pair,
 };
 use nom_locate::{
     position,
@@ -21,8 +23,25 @@ use nom_locate::{
 
 type Span<'a> = LocatedSpan<&'a [u8]>;
 
+enum TokenKind {
+    Symbol,
+    Keyword,
+    Integer,
+}
+
+impl Display for TokenKind {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        let repr = match self {
+            TokenKind::Symbol => "symbol",
+            TokenKind::Keyword => "keyword",
+            TokenKind::Integer => "int",
+        };
+        write!(f, "{}", repr)
+    }
+}
+
 enum Token<'a> {
-    Atom { position: Span<'a>, content: &'a [u8] },
+    Atom { position: Span<'a>, kind: TokenKind, content: &'a [u8] },
     Sexp { position: Span<'a>, inner: Vec<Token<'a>> },
 }
 
@@ -54,11 +73,13 @@ impl Debug for Token<'_> {
                        position.offset,
                        inner_strings.join("\n"))
             }
-            Token::Atom { position, content, .. } => {
-                write!(f, "{}:{} {}",
+            Token::Atom { position, kind, content, .. } => {
+                write!(f, "{}:{} {}<{}>",
                        position.line,
                        position.offset,
-                       std::str::from_utf8(&content).expect("bar"))
+                       std::str::from_utf8(&content).expect("bar"),
+                       kind
+                )
             }
         }
     }
@@ -72,14 +93,41 @@ fn parse_comment(s: Span) -> IResult<Span, Span> {
     Ok((s, s)) // First one's the right one, don't read from the second one.
 }
 
-fn parse_atom(s: Span) -> IResult<Span, Token> {
+fn parse_int(s: Span) -> IResult<Span, Token> {
+    let (s, pos) = position(s)?;
+    let (s, content) = digit1(s)?;
+
+    Ok((s, Token::Atom {
+        position: pos,
+        kind: TokenKind::Integer,
+        content: content.fragment,
+    }))
+}
+
+fn parse_keyword(s: Span) -> IResult<Span, Token> {
+    let (s, pos) = position(s)?;
+    let (s, content) = recognize(pair(tag(":"), alphanumeric1))(s)?;
+
+    Ok((s, Token::Atom {
+        position: pos,
+        kind: TokenKind::Keyword,
+        content: content.fragment,
+    }))
+}
+
+fn parse_symbol(s: Span) -> IResult<Span, Token> {
     let (s, pos) = position(s)?;
     let (s, content) = alphanumeric1(s)?;
 
     Ok((s, Token::Atom {
         position: pos,
+        kind: TokenKind::Symbol,
         content: content.fragment,
     }))
+}
+
+fn parse_atom(s: Span) -> IResult<Span, Token> {
+    alt((parse_keyword, parse_symbol, parse_int))(s)
 }
 
 fn parse_sexp(s: Span) -> IResult<Span, Token> {
@@ -96,11 +144,11 @@ fn parse_sexp(s: Span) -> IResult<Span, Token> {
 fn skip_stuff(s: Span) -> IResult<Span, Span> {
     let alt_parser = alt((parse_comment, multispace1));
     let (s, _) = many0(alt_parser)(s)?;
-    Ok((s, s)) // First one's the right one
+    rest(s)
 }
 
 fn parse_token(s: Span) -> IResult<Span, Token> {
-    let (s, _) = skip_stuff(s)?;
+    let (_, s) = skip_stuff(s)?;
     alt((
         parse_sexp,
         parse_atom
@@ -120,5 +168,5 @@ fn parse_source(source: &str) {
 }
 
 fn main() {
-    parse_source("(foo 3432 (dag of dags))\n ; blubber\nbar baz");
+    parse_source("(foo 3432 (dag of dags))\n ; blubber\nbar baz :kw");
 }

@@ -12,7 +12,7 @@ use nom::{
                           line_ending,
                           not_line_ending,
                           multispace1},
-    combinator::{all_consuming, recognize, rest},
+    combinator::{all_consuming, opt, recognize, rest},
     multi::{many0, many_till},
     branch::alt,
     sequence::pair,
@@ -96,7 +96,10 @@ fn parse_comment(s: Span) -> IResult<Span, Span> {
 
 fn parse_int(s: Span) -> IResult<Span, Token> {
     let (s, pos) = position(s)?;
-    let (s, content) = digit1(s)?;
+    let (s, content) = recognize(pair(
+        opt(tag("-")),
+        digit1
+    ))(s)?;
 
     Ok((s, Token::Atom {
         position: pos,

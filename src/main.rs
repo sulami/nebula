@@ -8,6 +8,7 @@ use nom::{
     IResult,
     bytes::complete::{tag},
     character::complete::{alphanumeric1,
+                          digit0,
                           digit1,
                           line_ending,
                           not_line_ending,
@@ -15,7 +16,7 @@ use nom::{
     combinator::{all_consuming, opt, recognize, rest},
     multi::{many0, many_till},
     branch::alt,
-    sequence::pair,
+    sequence::{pair, tuple},
 };
 use nom_locate::{
     position,
@@ -28,6 +29,7 @@ enum TokenKind {
     Symbol,
     Keyword,
     Integer,
+    Float,
 }
 
 impl Display for TokenKind {
@@ -36,6 +38,7 @@ impl Display for TokenKind {
             TokenKind::Symbol => "symbol",
             TokenKind::Keyword => "keyword",
             TokenKind::Integer => "int",
+            TokenKind::Float => "float",
         };
         write!(f, "{}", repr)
     }
@@ -94,6 +97,22 @@ fn parse_comment(s: Span) -> IResult<Span, Span> {
     Ok((s, s)) // First one's the right one, don't read from the second one.
 }
 
+fn parse_float(s: Span) -> IResult<Span, Token> {
+    let (s, pos) = position(s)?;
+    let (s, content) = recognize(tuple((
+        opt(tag("-")),
+        digit0,
+        tag("."),
+        digit1
+    )))(s)?;
+
+    Ok((s, Token::Atom {
+        position: pos,
+        kind: TokenKind::Float,
+        content: content.fragment,
+    }))
+}
+
 fn parse_int(s: Span) -> IResult<Span, Token> {
     let (s, pos) = position(s)?;
     let (s, content) = recognize(pair(
@@ -131,7 +150,7 @@ fn parse_symbol(s: Span) -> IResult<Span, Token> {
 }
 
 fn parse_atom(s: Span) -> IResult<Span, Token> {
-    alt((parse_keyword, parse_symbol, parse_int))(s)
+    alt((parse_keyword, parse_float, parse_int, parse_symbol))(s)
 }
 
 fn parse_sexp(s: Span) -> IResult<Span, Token> {

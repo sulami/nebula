@@ -2,6 +2,7 @@ extern crate nom;
 extern crate nom_locate;
 
 use std::fmt::{Debug, Display, Formatter, Result};
+use std::io::BufRead;
 
 use nom::{
     IResult,
@@ -169,4 +170,13 @@ fn parse_source(source: &str) {
 
 fn main() {
     parse_source("(foo 3432 (dag of dags))\n ; blubber\nbar baz :kw");
+
+    for line in std::io::stdin().lock().lines() {
+        let l = line.unwrap();
+        if l.is_empty() {
+            std::process::exit(0);
+        } else {
+            parse_source(&String::from(l));
+        }
+    }
 }

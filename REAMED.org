@@ -1,0 +1,6 @@
+** Building on macOS
+#+begin_src sh
+LLVM_SYS_80_PREFIX=/usr/local/Cellar/llvm@8/8.0.1_1 cargo build
+target/debug/nebula
+gcc toast.o -o toast
+#+end_src

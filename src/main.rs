@@ -2,11 +2,11 @@ extern crate nom;
 extern crate nom_locate;
 
 use std::fmt::{Debug, Display, Formatter, Result};
-use std::io::BufRead;
+// use std::io::BufRead;
 
 use nom::{
     IResult,
-    bytes::complete::{tag},
+    bytes::complete::{is_a, tag},
     character::complete::{alphanumeric1,
                           digit0,
                           digit1,
@@ -138,9 +138,11 @@ fn parse_keyword(s: Span) -> IResult<Span, Token> {
     }))
 }
 
+const SYMBOL_CHARS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890*+!-_'?<>=";
+
 fn parse_symbol(s: Span) -> IResult<Span, Token> {
     let (s, pos) = position(s)?;
-    let (s, content) = alphanumeric1(s)?;
+    let (s, content) = is_a(SYMBOL_CHARS)(s)?;
 
     Ok((s, Token::Atom {
         position: pos,
@@ -190,15 +192,67 @@ fn parse_source(source: &str) {
     }
 }
 
+use inkwell::OptimizationLevel;
+use inkwell::context::Context;
+// use inkwell::builder::Builder;
+// use inkwell::module::Module;
+use inkwell::targets::{Target, TargetMachine, RelocMode, CodeModel, FileType, InitializationConfig};
+use std::path::Path;
+
 fn main() {
     parse_source("(foo 3432 (dag of dags))\n ; blubber\nbar baz :kw");
 
-    for line in std::io::stdin().lock().lines() {
-        let l = line.unwrap();
-        if l.is_empty() {
-            std::process::exit(0);
-        } else {
-            parse_source(&String::from(l));
-        }
+    let context = Context::create();
+    let module = context.create_module("toast");
+    let builder = context.create_builder();
+    let main_fn_type = context.i32_type().fn_type(&[], false); // arguments & is_var_args
+    let main_fn_val = module.add_function("main", main_fn_type, None);
+    let entry = main_fn_val.append_basic_block("entry");
+    let number = context.i32_type().const_int(4, false);
+    builder.position_at_end(&entry);
+    builder.build_return(Some(&number));
+
+    // jit compile & execution
+    let jee = module.create_jit_execution_engine(OptimizationLevel::None).unwrap();
+    unsafe {
+        let rv = jee.run_function_as_main(&main_fn_val, &[]);
+        println!("{}", rv);
     }
+
+    // write llvm bitcode to a file
+    // might be useful for caching I guess, if we ever have performance problems
+    // let path = Path::new("toast.bc");
+    // module.write_bitcode_to_path(&path);
+
+    // write a native object file
+    // can be picked up with llc/gcc
+    Target::initialize_x86(&InitializationConfig::default());
+    let path = Path::new("toast.o");
+    let target = Target::from_name("x86-64").expect("failed to create target");
+    let target_machine = target.create_target_machine(
+        &TargetMachine::get_default_triple().to_string(),
+        "generic",
+        "",
+        OptimizationLevel::None,
+        RelocMode::Default,
+        CodeModel::Default,
+    ).expect("failed to create target machine");
+    let result = target_machine.write_to_file(
+        &module,
+        FileType::Object,
+        &path,
+    );
+    match result {
+        Ok(_) => {},
+        Err(_) => println!("failed to write"),
+    }
+
+    // for line in std::io::stdin().lock().lines() {
+    //     let l = line.unwrap();
+    //     if l.is_empty() {
+    //         std::process::exit(0);
+    //     } else {
+    //         parse_source(&String::from(l));
+    //     }
+    // }
 }

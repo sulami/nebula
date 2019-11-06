@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 nom = "5"
 nom_locate = "1"
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "llvm8-0" }
